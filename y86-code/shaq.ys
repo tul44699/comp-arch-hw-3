@@ -1,0 +1,7 @@
+# Test SHAQ
+    irmovq $2, %rax 
+    irmovq $8, %rbx
+    shaq %rax, %rbx
+    irmovq $-1, %rax
+    shaq %rax, %rbx 
+    halt

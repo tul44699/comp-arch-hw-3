@@ -1,0 +1,7 @@
+# Test DIVQ
+    irmovq $2, %rax
+    irmovq $10, %rbx
+    divq %rax, %rbx
+    irmovq $0, %rax
+    divq %rax, %rbx
+    halt

@@ -1,0 +1,10 @@
+# Test TJXX
+    irmovq $0, %rax    
+    irmovq $1, %rbx   
+    irmovq target, %rcx
+    tjne %rax, (%rcx)
+    halt
+
+target:
+    irmovq $99, %rdx
+    halt

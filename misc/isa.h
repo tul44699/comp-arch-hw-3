@@ -14,6 +14,8 @@
 /**************** Registers *************************/
 
 /* REG_NONE is a special one to indicate no register */
+#include <stdio.h>
+
 typedef enum {
   REG_RAX,
   REG_RCX,
@@ -60,7 +62,11 @@ typedef enum {
   I_POPQ,
   I_IADDQ,
   I_ISUBQ,
-  I_POP2
+  I_POP2,
+  /* new instruction types for the homework */
+  I_TJXX,
+  I_SHAQ,
+  I_DIVQ
 } itype_t;
 
 /* Different ALU operations */
@@ -166,7 +172,7 @@ void dump_memory(FILE *outfile, mem_t m, word_t pos, int cnt);
 /********** Implementation of Register File *************/
 
 mem_t init_reg();
-void free_reg();
+void free_reg(mem_t r);
 
 /* Make a copy of a register file */
 mem_t copy_reg(mem_t oldr);

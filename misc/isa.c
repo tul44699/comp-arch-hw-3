@@ -77,6 +77,15 @@ instr_t instruction_set[] = {
     /* this is just a hack to make the I_POP2 code have an associated name */
     {"pop2", HPACK(I_POP2, F_NONE), 0, NO_ARG, 0, 0, NO_ARG, 0, 0},
 
+    {"tjle", HPACK(I_TJXX, C_LE), 10, R_ARG, 1, 1, M_ARG, 2, 0},
+    {"tjlt", HPACK(I_TJXX, C_L), 10, R_ARG, 1, 1, M_ARG, 2, 0},
+    {"tje", HPACK(I_TJXX, C_E), 10, R_ARG, 1, 1, M_ARG, 2, 0},
+    {"tjne", HPACK(I_TJXX, C_NE), 10, R_ARG, 1, 1, M_ARG, 2, 0},
+    {"tjge", HPACK(I_TJXX, C_GE), 10, R_ARG, 1, 1, M_ARG, 2, 0},
+    {"tjg", HPACK(I_TJXX, C_G), 10, R_ARG, 1, 1, M_ARG, 2, 0},
+    {"shaq", HPACK(I_SHAQ, F_NONE), 2, R_ARG, 1, 1, R_ARG, 1, 0},
+    {"divq", HPACK(I_DIVQ, F_NONE), 2, R_ARG, 1, 1, R_ARG, 1, 0},
+
     /* For allocation instructions, arg1hi indicates number of bytes */
     {".byte", 0x00, 1, I_ARG, 0, 1, NO_ARG, 0, 0},
     {".word", 0x00, 2, I_ARG, 0, 2, NO_ARG, 0, 0},
@@ -562,8 +571,8 @@ stat_t step_state(state_ptr s, FILE *error_file, bool_t *mult_cycle) {
   byte_t byte1 = 0;
   itype_t hi0;
   alu_t lo0;
-  reg_id_t hi1 = REG_NONE;
-  reg_id_t lo1 = REG_NONE;
+  reg_id_t rA = REG_NONE;
+  reg_id_t rB = REG_NONE;
   bool_t ok1 = TRUE;
   word_t cval = 0;
   word_t okc = TRUE;
@@ -587,13 +596,14 @@ stat_t step_state(state_ptr s, FILE *error_file, bool_t *mult_cycle) {
 
   need_regids = (hi0 == I_RRMOVQ || hi0 == I_ALU || hi0 == I_PUSHQ ||
                  hi0 == I_POPQ || hi0 == I_IRMOVQ || hi0 == I_RMMOVQ ||
-                 hi0 == I_MRMOVQ || hi0 == I_IADDQ || hi0 == I_ISUBQ);
+                 hi0 == I_MRMOVQ || hi0 == I_IADDQ || hi0 == I_ISUBQ ||
+                 hi0 == I_TJXX || hi0 == I_SHAQ || hi0 == I_DIVQ);
 
   if (need_regids) {
     ok1 = get_byte_val(s->m, ftpc, &byte1);
     ftpc++;
-    hi1 = HI4(byte1);
-    lo1 = LO4(byte1);
+    rA = HI4(byte1);
+    rB = LO4(byte1);
   }
 
   need_imm =
@@ -619,21 +629,21 @@ stat_t step_state(state_ptr s, FILE *error_file, bool_t *mult_cycle) {
                 s->pc);
       return STAT_ADR;
     }
-    if (!reg_valid(hi1)) {
+    if (!reg_valid(rA)) {
       if (error_file)
         fprintf(error_file, "PC = 0x%llx, Invalid register ID 0x%.1x\n", s->pc,
-                hi1);
+                rA);
       return STAT_INS;
     }
-    if (!reg_valid(lo1)) {
+    if (!reg_valid(rB)) {
       if (error_file)
         fprintf(error_file, "PC = 0x%llx, Invalid register ID 0x%.1x\n", s->pc,
-                lo1);
+                rB);
       return STAT_INS;
     }
-    val = get_reg_val(s->r, hi1);
+    val = get_reg_val(s->r, rA);
     if (cond_holds(s->cc, lo0))
-      set_reg_val(s->r, lo1, val);
+      set_reg_val(s->r, rB, val);
     s->pc = ftpc;
     break;
   case I_IRMOVQ:
@@ -648,13 +658,13 @@ stat_t step_state(state_ptr s, FILE *error_file, bool_t *mult_cycle) {
         fprintf(error_file, "PC = 0x%llx, Invalid instruction address", s->pc);
       return STAT_INS;
     }
-    if (!reg_valid(lo1)) {
+    if (!reg_valid(rB)) {
       if (error_file)
         fprintf(error_file, "PC = 0x%llx, Invalid register ID 0x%.1x\n", s->pc,
-                lo1);
+                rB);
       return STAT_INS;
     }
-    set_reg_val(s->r, lo1, cval);
+    set_reg_val(s->r, rB, cval);
     s->pc = ftpc;
     break;
   case I_RMMOVQ:
@@ -670,15 +680,15 @@ stat_t step_state(state_ptr s, FILE *error_file, bool_t *mult_cycle) {
                 s->pc);
       return STAT_INS;
     }
-    if (!reg_valid(hi1)) {
+    if (!reg_valid(rA)) {
       if (error_file)
         fprintf(error_file, "PC = 0x%llx, Invalid register ID 0x%.1x\n", s->pc,
-                hi1);
+                rA);
       return STAT_INS;
     }
-    if (reg_valid(lo1))
-      cval += get_reg_val(s->r, lo1);
-    val = get_reg_val(s->r, hi1);
+    if (reg_valid(rB))
+      cval += get_reg_val(s->r, rB);
+    val = get_reg_val(s->r, rA);
     if (!set_word_val(s->m, cval, val)) {
       if (error_file)
         fprintf(error_file, "PC = 0x%llx, Invalid data address 0x%llx\n", s->pc,
@@ -699,17 +709,17 @@ stat_t step_state(state_ptr s, FILE *error_file, bool_t *mult_cycle) {
         fprintf(error_file, "PC = 0x%llx, Invalid instruction addres\n", s->pc);
       return STAT_INS;
     }
-    if (!reg_valid(hi1)) {
+    if (!reg_valid(rA)) {
       if (error_file)
         fprintf(error_file, "PC = 0x%llx, Invalid register ID 0x%.1x\n", s->pc,
-                hi1);
+                rA);
       return STAT_INS;
     }
-    if (reg_valid(lo1))
-      cval += get_reg_val(s->r, lo1);
+    if (reg_valid(rB))
+      cval += get_reg_val(s->r, rB);
     if (!get_word_val(s->m, cval, &val))
       return STAT_ADR;
-    set_reg_val(s->r, hi1, val);
+    set_reg_val(s->r, rA, val);
     s->pc = ftpc;
     break;
   case I_ALU:
@@ -719,23 +729,23 @@ stat_t step_state(state_ptr s, FILE *error_file, bool_t *mult_cycle) {
                 s->pc);
       return STAT_ADR;
     }
-    argA = get_reg_val(s->r, hi1);
-    argB = get_reg_val(s->r, lo1);
+    argA = get_reg_val(s->r, rA);
+    argB = get_reg_val(s->r, rB);
     val = compute_alu(lo0, argA, argB, mult_cycle);
-    set_reg_val(s->r, lo1, val);
+    set_reg_val(s->r, rB, val);
     s->cc = compute_cc(lo0, argA, argB, mult_cycle);
     s->pc = ftpc;
     break;
   case I_JMP:
     if (!ok1) {
       if (error_file)
-        fprintf(error_file, "PC = 0x%llx, Invalid instruction address\n",
+        fprintf(error_file, "pc = 0x%llx, invalid instruction address\n",
                 s->pc);
       return STAT_ADR;
     }
     if (!okc) {
       if (error_file)
-        fprintf(error_file, "PC = 0x%llx, Invalid instruction address\n",
+        fprintf(error_file, "pc = 0x%llx, invalid instruction address\n",
                 s->pc);
       return STAT_ADR;
     }
@@ -786,13 +796,13 @@ stat_t step_state(state_ptr s, FILE *error_file, bool_t *mult_cycle) {
                 s->pc);
       return STAT_ADR;
     }
-    if (!reg_valid(hi1)) {
+    if (!reg_valid(rA)) {
       if (error_file)
         fprintf(error_file, "PC = 0x%llx, Invalid register ID 0x%.1x\n", s->pc,
-                hi1);
+                rA);
       return STAT_INS;
     }
-    val = get_reg_val(s->r, hi1);
+    val = get_reg_val(s->r, rA);
     dval = get_reg_val(s->r, REG_RSP) - 8;
     set_reg_val(s->r, REG_RSP, dval);
     if (!set_word_val(s->m, dval, val)) {
@@ -810,10 +820,10 @@ stat_t step_state(state_ptr s, FILE *error_file, bool_t *mult_cycle) {
                 s->pc);
       return STAT_ADR;
     }
-    if (!reg_valid(hi1)) {
+    if (!reg_valid(rA)) {
       if (error_file)
         fprintf(error_file, "PC = 0x%llx, Invalid register ID 0x%.1x\n", s->pc,
-                hi1);
+                rA);
       return STAT_INS;
     }
     dval = get_reg_val(s->r, REG_RSP);
@@ -824,7 +834,7 @@ stat_t step_state(state_ptr s, FILE *error_file, bool_t *mult_cycle) {
                 s->pc, dval);
       return STAT_ADR;
     }
-    set_reg_val(s->r, hi1, val);
+    set_reg_val(s->r, rA, val);
     s->pc = ftpc;
     break;
   case I_IADDQ:
@@ -840,13 +850,13 @@ stat_t step_state(state_ptr s, FILE *error_file, bool_t *mult_cycle) {
         fprintf(error_file, "PC = 0x%llx, Invalid instruction address", s->pc);
       return STAT_INS;
     }
-    if (!reg_valid(lo1)) {
+    if (!reg_valid(rB)) {
       if (error_file)
         fprintf(error_file, "PC = 0x%llx, Invalid register ID 0x%.1x\n", s->pc,
-                lo1);
+                rB);
       return STAT_INS;
     }
-    argB = get_reg_val(s->r, lo1);
+    argB = get_reg_val(s->r, rB);
 
     if (hi0 == I_IADDQ) {
       oprn = A_ADD;
@@ -855,10 +865,129 @@ stat_t step_state(state_ptr s, FILE *error_file, bool_t *mult_cycle) {
       oprn = A_SUB;
       val = argB - cval;
     }
-    set_reg_val(s->r, lo1, val);
+    set_reg_val(s->r, rB, val);
     s->cc = compute_cc(oprn, cval, argB, mult_cycle);
     s->pc = ftpc;
     break;
+
+  /* ------------------------------------------------------------------
+     New instructions: I_TJXX, I_SHAQ, I_DIVQ
+  ------------------------------------------------------------------*/
+  case I_TJXX: {
+    byte_t b1;
+    word_t D;
+    reg_id_t rA, rB;
+    word_t valA;
+    bool_t cond = FALSE;
+
+    if (!get_word_val(s->m, s->pc + 2, &D))
+      return STAT_ADR;
+
+    valA = get_reg_val(s->r, rA);
+
+    long long s_valA = (long long)valA;
+
+    switch (lo0) {
+    case C_E:
+      cond = (s_valA == 0);
+      break; /* TJE */
+    case C_NE:
+      cond = (s_valA != 0);
+      break; /* TJNE */
+    case C_L:
+      cond = (s_valA < 0);
+      break; /* TJLT */
+    case C_LE:
+      cond = (s_valA <= 0);
+      break; /* TJLE */
+    case C_G:
+      cond = (s_valA > 0);
+      break; /* TJG */
+    case C_GE:
+      cond = (s_valA >= 0);
+      break; /* TJGE */
+    case C_YES:
+    default:
+      cond = TRUE;
+      break;
+    }
+
+    long long base = (long long)get_reg_val(s->r, rB);
+
+    // D + (rB)
+    long long t = (long long)D + base;
+
+    unsigned long long target = (unsigned long long)t;
+    const unsigned long long MAXADDR = 0xFFFFULL; // max 16bit
+
+    if (cond && t >= 0 && target <= MAXADDR) {
+      s->pc = (word_t)target;
+    } else {
+      s->pc = s->pc + 10;
+    }
+    break;
+  }
+
+  case I_SHAQ: {
+    long long amt = (long long)get_reg_val(s->r, rA);
+    unsigned long long old = (unsigned long long)get_reg_val(s->r, rB);
+    unsigned long long result = old;
+    bool_t overflow = FALSE;
+
+    if (amt > 0) {
+      int sh = (amt > 63) ? 63 : (int)amt;
+      long long signed_old = (long long)old;
+      result = (unsigned long long)(signed_old >> sh);
+    } else if (amt < 0) {
+      long long lamt = -amt;
+      int sh = (lamt > 63) ? 63 : (int)lamt;
+      if (sh == 0)
+        result = old;
+      else {
+        int sign_bit = ((long long)old < 0) ? 1 : 0;
+        unsigned long long top_bits;
+        if (sh == 64)
+          top_bits = old;
+        else
+          top_bits = (old >> (64 - sh)) & ((1ULL << sh) - 1ULL);
+        if (sign_bit) {
+          if (top_bits != ((sh == 64) ? ~0ULL : ((1ULL << sh) - 1ULL)))
+            overflow = TRUE;
+        } else {
+          if (top_bits != 0ULL)
+            overflow = TRUE;
+        }
+        result = old << sh;
+      }
+    } else {
+      result = old;
+    }
+
+    set_reg_val(s->r, rB, (word_t)result);
+    cc_t newcc = PACK_CC(result == 0 ? 1 : 0, ((long long)result < 0) ? 1 : 0,
+                         overflow ? 1 : 0);
+    s->cc = newcc;
+    s->pc = s->pc + 2;
+    break;
+  }
+
+  case I_DIVQ: {
+    long long divisor = (long long)get_reg_val(s->r, rA);
+    long long dividend = (long long)get_reg_val(s->r, rB);
+
+    s->pc = s->pc + 2;
+
+    if (divisor == 0) {
+      s->cc = PACK_CC((dividend == 0) ? 1 : 0, (dividend < 0) ? 1 : 0, 1);
+      return STAT_HLT;
+    }
+
+    long long q = dividend / divisor;
+    set_reg_val(s->r, rB, (word_t)q);
+
+    s->cc = PACK_CC((q == 0) ? 1 : 0, (q < 0) ? 1 : 0, 0);
+    break;
+  }
   default:
     if (error_file)
       fprintf(error_file, "PC = 0x%llx, Invalid instruction %.2x\n", s->pc,
