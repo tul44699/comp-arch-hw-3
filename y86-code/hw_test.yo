@@ -1,0 +1,134 @@
+                            | # address 0
+0x000:                      |     .pos 0
+0x000: 30f40003000000000000 |     irmovq stack, %rsp
+0x00a: 800001000000000000   |     call main
+0x013: 00                   |     halt
+                            | 
+0x100:                      | .pos 0x100
+0x100:                      | main:
+                            |     # rdi now contains the array
+0x100: 30f70002000000000000 |     irmovq $array, %rdi
+0x10a: 30fe4800000000000000 |     irmovq $72, %r14
+                            | 
+                            |     # array starts at the last element
+0x114: 60e7                 |     addq %r14, %rdi
+                            | 
+                            |     # X = 40
+0x116: 30f62800000000000000 |     irmovq $40, %rsi
+                            | 
+                            |     # S = 0
+0x120: 30f80000000000000000 |     irmovq $0, %r8
+                            | 
+                            |     # Limit = 3000
+0x12a: 30f2b80b000000000000 |     irmovq $3000, %rdx
+                            | 
+                            |     # i = size - 1
+0x134: 30f10900000000000000 |     irmovq $9, %rcx
+                            | 
+                            |     # amt to increment array by 
+0x13e: 30fe0800000000000000 |     irmovq $8, %r14
+0x148:                      | loop:
+                            |     # load A[i] into %rbx
+0x148: 50370000000000000000 |     mrmovq (%rdi), %rbx
+                            | 
+                            |     # i--
+0x152: 61e7                 |     subq %r14, %rdi
+                            | 
+                            |     # if (A[i] < 0)
+0x154: 203b                 |     rrmovq %rbx, %r11
+                            | 
+                            |     # jump if negative
+0x156: f2bf6f01000000000000 |     tjlt %r11, neg_case
+                            | 
+0x160:                      | pos_case:
+                            |     # Y = X >> A[i]
+                            | 
+                            |     # x moves into y
+0x160: 2069                 |     rrmovq %rsi, %r9
+                            | 
+                            |     # shift amt (A[i])
+0x162: 203a                 |     rrmovq %rbx, %r10
+                            | 
+                            |     # Y = X >> A[i]
+0x164: 66a9                 |     shaq %r10, %r9
+0x166: 708101000000000000   |     jmp compute_mod 
+                            | 
+0x16f:                      | neg_case:
+                            |     # Y = X << (-A[i])
+                            | 
+                            |     # x moves into y
+0x16f: 2069                 |     rrmovq %rsi, %r9
+                            | 
+                            |     # shift amt (A[i])
+0x171: 203a                 |     rrmovq %rbx, %r10
+                            | 
+0x173: 30fb0000000000000000 |     irmovq $0, %r11
+                            | 
+                            |     # r11 = -A[i]
+0x17d: 61ab                 |     subq %r10, %r11
+                            | 
+                            |     # Y = X << (-A[i])
+0x17f: 66b9                 |     shaq %r11, %r9
+                            | 
+0x181:                      | compute_mod:
+                            | 
+                            |     # move y into  %r10
+0x181: 209a                 |     rrmovq %r9, %r10
+                            | 
+                            |     # move limit into r11 
+0x183: 202b                 |     rrmovq %rdx, %r11
+                            | 
+                            |     # quotient = Y / Limit
+0x185: 67ba                 |     divq %r11, %r10
+                            | 
+0x187: 30fc0000000000000000 |     irmovq $0, %r12
+0x191: 20ad                 |     rrmovq %r10, %r13 
+                            | 
+0x193:                      | mul_loop:
+0x193: f1dfb401000000000000 |     tjle %r13, mul_done
+                            | 
+                            |     # product += Limit
+0x19d: 602c                 |     addq %rdx, %r12
+0x19f: 30f00100000000000000 |     irmovq $1, %rax
+                            | 
+                            |     # counter--
+0x1a9: 610d                 |     subq %rax, %r13
+0x1ab: 709301000000000000   |     jmp mul_loop
+                            | 
+0x1b4:                      | mul_done:
+                            | 
+                            |     # remainder = Y - product
+0x1b4: 61c9                 |     subq %r12, %r9
+                            | 
+                            |     # S += remainder
+0x1b6: 6098                 |     addq %r9, %r8
+                            | 
+                            |     # i--
+0x1b8: 30f00100000000000000 |     irmovq $1, %rax
+0x1c2: 6101                 |     subq %rax, %rcx
+                            | 
+                            |     # loop until i < 0
+0x1c4: f21fd701000000000000 |     tjlt %rcx, done
+                            | 
+0x1ce: 704801000000000000   |     jmp loop
+                            | 
+0x1d7:                      | done:
+0x1d7: 90                   |     ret
+                            | 
+                            | 
+                            | #int A[size]
+0x200:                      |     .pos 0x200
+0x200:                      |     .align 8
+0x200: fcffffffffffffff     | array: .quad -4
+0x208: f3ffffffffffffff     |     .quad -13
+0x210: 0300000000000000     |     .quad 3
+0x218: 0100000000000000     |     .quad 1
+0x220: feffffffffffffff     |     .quad -2
+0x228: fbffffffffffffff     |     .quad -5
+0x230: ffffffffffffffff     |     .quad -1
+0x238: 0000000000000000     |     .quad 0
+0x240: f9ffffffffffffff     |     .quad -7
+0x248: 0100000000000000     |     .quad 1 
+                            | 
+0x300:                      | 	.pos 0x300
+0x300:                      | stack:

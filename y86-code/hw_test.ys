@@ -1,0 +1,134 @@
+# address 0
+    .pos 0
+    irmovq stack, %rsp
+    call main
+    halt
+
+.pos 0x100
+main:
+    # rdi now contains the array
+    irmovq $array, %rdi
+    irmovq $72, %r14
+
+    # array starts at the last element
+    addq %r14, %rdi
+
+    # X = 40
+    irmovq $40, %rsi
+
+    # S = 0
+    irmovq $0, %r8
+
+    # Limit = 3000
+    irmovq $3000, %rdx
+
+    # i = size - 1
+    irmovq $9, %rcx
+
+    # amt to increment array by 
+    irmovq $8, %r14
+loop:
+    # load A[i] into %rbx
+    mrmovq (%rdi), %rbx
+
+    # i--
+    subq %r14, %rdi
+
+    # if (A[i] < 0)
+    rrmovq %rbx, %r11
+
+    # jump if negative
+    tjlt %r11, neg_case
+
+pos_case:
+    # Y = X >> A[i]
+
+    # x moves into y
+    rrmovq %rsi, %r9
+
+    # shift amt (A[i])
+    rrmovq %rbx, %r10
+
+    # Y = X >> A[i]
+    shaq %r10, %r9
+    jmp compute_mod 
+
+neg_case:
+    # Y = X << (-A[i])
+
+    # x moves into y
+    rrmovq %rsi, %r9
+
+    # shift amt (A[i])
+    rrmovq %rbx, %r10
+
+    irmovq $0, %r11
+
+    # r11 = -A[i]
+    subq %r10, %r11
+
+    # Y = X << (-A[i])
+    shaq %r11, %r9
+
+compute_mod:
+
+    # move y into  %r10
+    rrmovq %r9, %r10
+
+    # move limit into r11 
+    rrmovq %rdx, %r11
+
+    # quotient = Y / Limit
+    divq %r11, %r10
+
+    irmovq $0, %r12
+    rrmovq %r10, %r13 
+
+mul_loop:
+    tjle %r13, mul_done
+
+    # product += Limit
+    addq %rdx, %r12
+    irmovq $1, %rax
+
+    # counter--
+    subq %rax, %r13
+    jmp mul_loop
+
+mul_done:
+
+    # remainder = Y - product
+    subq %r12, %r9
+
+    # S += remainder
+    addq %r9, %r8
+
+    # i--
+    irmovq $1, %rax
+    subq %rax, %rcx
+
+    # loop until i < 0
+    tjlt %rcx, done
+
+    jmp loop
+
+done:
+    ret
+
+
+#int A[size]
+    .pos 0x200
+    .align 8
+array: .quad -4
+    .quad -13
+    .quad 3
+    .quad 1
+    .quad -2
+    .quad -5
+    .quad -1
+    .quad 0
+    .quad -7
+    .quad 1 
+
+	.pos 0x300
+stack:
