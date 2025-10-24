@@ -608,7 +608,7 @@ stat_t step_state(state_ptr s, FILE *error_file, bool_t *mult_cycle) {
 
   need_imm =
       (hi0 == I_IRMOVQ || hi0 == I_RMMOVQ || hi0 == I_MRMOVQ || hi0 == I_JMP ||
-       hi0 == I_CALL || hi0 == I_IADDQ || hi0 == I_ISUBQ);
+       hi0 == I_CALL || hi0 == I_IADDQ || hi0 == I_ISUBQ || hi0 == I_TJXX);
 
   if (need_imm) {
     okc = get_word_val(s->m, ftpc, &cval);
@@ -874,20 +874,14 @@ stat_t step_state(state_ptr s, FILE *error_file, bool_t *mult_cycle) {
      New instructions: I_TJXX, I_SHAQ, I_DIVQ
   ------------------------------------------------------------------*/
   case I_TJXX: {
-    byte_t b1;
-    word_t D;
-    reg_id_t rA, rB;
     word_t valA;
     bool_t cond = FALSE;
-
-    if (!get_word_val(s->m, s->pc + 2, &D))
-      return STAT_ADR;
 
     valA = get_reg_val(s->r, rA);
 
     long long s_valA = (long long)valA;
 
-    switch (lo0) {
+    switch ((cond_t)lo0) {
     case C_E:
       cond = (s_valA == 0);
       break; /* TJE */
@@ -912,62 +906,57 @@ stat_t step_state(state_ptr s, FILE *error_file, bool_t *mult_cycle) {
       break;
     }
 
-    long long base = (long long)get_reg_val(s->r, rB);
+    long long base = reg_valid(rB) ? (long long)get_reg_val(s->r, rB) : 0;
+    long long target = (long long)cval + base;
 
-    // D + (rB)
-    long long t = (long long)D + base;
-
-    unsigned long long target = (unsigned long long)t;
     const unsigned long long MAXADDR = 0xFFFFULL; // max 16bit
 
-    if (cond && t >= 0 && target <= MAXADDR) {
+    if (cond && target >= 0 && (unsigned long long)target <= MAXADDR) {
       s->pc = (word_t)target;
     } else {
-      s->pc = s->pc + 10;
+      s->pc = ftpc;
     }
     break;
   }
 
   case I_SHAQ: {
     long long amt = (long long)get_reg_val(s->r, rA);
-    unsigned long long old = (unsigned long long)get_reg_val(s->r, rB);
-    unsigned long long result = old;
+    unsigned long long val = (unsigned long long)get_reg_val(s->r, rB);
+    long long s_val = (long long)val;
     bool_t overflow = FALSE;
 
     if (amt > 0) {
-      int sh = (amt > 63) ? 63 : (int)amt;
-      long long signed_old = (long long)old;
-      result = (unsigned long long)(signed_old >> sh);
+      int shift_amt = (amt > 63) ? 63 : amt;
+      s_val = s_val >> shift_amt;
+      val = (unsigned long long)s_val;
     } else if (amt < 0) {
-      long long lamt = -amt;
-      int sh = (lamt > 63) ? 63 : (int)lamt;
-      if (sh == 0)
-        result = old;
-      else {
-        int sign_bit = ((long long)old < 0) ? 1 : 0;
-        unsigned long long top_bits;
-        if (sh == 64)
-          top_bits = old;
-        else
-          top_bits = (old >> (64 - sh)) & ((1ULL << sh) - 1ULL);
+      int shift_amt = (-amt > 63) ? 63 : -amt;
+
+      if (shift_amt < 64) {
+        unsigned long long shifted_out_bits = val >> (64 - shift_amt);
+        int sign_bit = (s_val < 0) ? 1 : 0;
+
         if (sign_bit) {
-          if (top_bits != ((sh == 64) ? ~0ULL : ((1ULL << sh) - 1ULL)))
+          unsigned long long expected_mask = (1ULL << shift_amt) - 1;
+          if (shifted_out_bits != expected_mask)
             overflow = TRUE;
         } else {
-          if (top_bits != 0ULL)
+          if (shifted_out_bits != 0)
             overflow = TRUE;
         }
-        result = old << sh;
+      } else {
+        if (s_val != 0)
+          overflow = TRUE;
       }
-    } else {
-      result = old;
+
+      val <<= shift_amt;
+      s_val = (long long)val;
     }
 
-    set_reg_val(s->r, rB, (word_t)result);
-    cc_t newcc = PACK_CC(result == 0 ? 1 : 0, ((long long)result < 0) ? 1 : 0,
-                         overflow ? 1 : 0);
-    s->cc = newcc;
-    s->pc = s->pc + 2;
+    set_reg_val(s->r, rB, (word_t)val);
+
+    s->cc = PACK_CC(val == 0 ? 1 : 0, s_val < 0 ? 1 : 0, overflow ? 1 : 0);
+    s->pc = ftpc;
     break;
   }
 
@@ -975,10 +964,9 @@ stat_t step_state(state_ptr s, FILE *error_file, bool_t *mult_cycle) {
     long long divisor = (long long)get_reg_val(s->r, rA);
     long long dividend = (long long)get_reg_val(s->r, rB);
 
-    s->pc = s->pc + 2;
-
     if (divisor == 0) {
       s->cc = PACK_CC((dividend == 0) ? 1 : 0, (dividend < 0) ? 1 : 0, 1);
+      s->pc = ftpc;
       return STAT_HLT;
     }
 
@@ -986,6 +974,7 @@ stat_t step_state(state_ptr s, FILE *error_file, bool_t *mult_cycle) {
     set_reg_val(s->r, rB, (word_t)q);
 
     s->cc = PACK_CC((q == 0) ? 1 : 0, (q < 0) ? 1 : 0, 0);
+    s->pc = ftpc;
     break;
   }
   default:
