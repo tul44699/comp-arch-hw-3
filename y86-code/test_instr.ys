@@ -1,0 +1,47 @@
+    .pos 0
+    irmovq stack, %rsp
+    irmovq $0, %rbp
+
+    irmovq $10, %rax         # rax = 10
+    irmovq $5, %rbx          # rbx = 5
+    irmovq $-3, %rcx         # rcx = -3
+    irmovq $0, %rdx          # rdx = 0
+    irmovq $0, %rsi
+    irmovq $0, %rdi
+
+# test tjxx instructions
+    irmovq target1, %r8
+    tje %rdx, 0(%r8)
+    irmovq $99, %r9
+target1:
+    irmovq $42, %r9
+
+# jump if lt zero
+    irmovq target2, %r8
+    tjlt %rcx, 0(%r8)
+    irmovq $0, %r10 
+target2:
+    irmovq $77, %r10
+
+# test shaq 
+    irmovq $2, %rax
+    irmovq $16, %rbx
+    shaq %rax, %rbx          # 16 >> 2 = 4
+
+    irmovq $-3, %rcx
+    irmovq $1, %rdx
+    shaq %rcx, %rdx          # 1 << 3 = 8
+
+#test divq
+    irmovq $2, %rsi
+    irmovq $10, %rdi
+    divq %rsi, %rdi          # rdi = 10 / 2 = 5
+
+# divide by zero
+    irmovq $0, %rsi
+    divq %rsi, %rdi
+
+    halt
+
+stack:
+    .quad 0
