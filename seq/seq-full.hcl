@@ -95,6 +95,9 @@ wordsig valM	'valm'			# Value read from memory
 boolsig dmem_error 'dmem_error'		# Error signal from data memory
 
 
+boolsig tjxx_cond 'tjxx_cond'
+boolsig tjxx_addr_valid 'tjxx_addr_valid'
+
 ####################################################################
 #    Control Signal Definitions.                                   #
 ####################################################################
@@ -201,21 +204,6 @@ word rem_cycles = [
 ## Should the condition codes be updated?
 bool set_cc = icode in { IOPQ, IIADDQ, IISUBQ, ISHAQ, IDIVQ };
 
-bool tjxx_cond = [
-	icode == ITJXX && ifun == 0 : 1;
-	icode == ITJXX && ifun == 1 : (valA == 0);
-	icode == ITJXX && ifun == 2 : (valA != 0);
-	icode == ITJXX && ifun == 3 : (valA < 0);
-	icode == ITJXX && ifun == 4 : (valA <= 0);
-	icode == ITJXX && ifun == 5 : (valA > 0);
-	icode == ITJXX && ifun == 6 : (valA >= 0);
-	1 : 0;
-];
-
-bool tjxx_addr_valid = [
-	icode == ITJXX : (valE >= 0 && valE <= 0xFFFF);
-	1 : 1;
-];
 
 ################ Memory Stage    ###################################
 

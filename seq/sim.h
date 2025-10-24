@@ -7,7 +7,6 @@
 /* Get rb out of one byte regid field */
 #define GET_RB(r) LO4(r)
 
-
 /************ Global state declaration ****************/
 
 /* Determines whether running SEQ or SEQ+ */
@@ -57,9 +56,11 @@ extern word_t valm;
 extern bool_t dmem_error;
 extern byte_t status;
 
+extern bool_t tjxx_cond;
+extern bool_t tjxx_addr_valid;
+
 /* Log file */
 extern FILE *dumpfile;
-
 
 /* Sets the simulator name (called from main routine in HCL file) */
 void set_simname(char *name);
@@ -88,8 +89,7 @@ void sim_set_dumpfile(FILE *file);
  * sim_log dumps a formatted string to the dumpfile, if it exists
  * accepts variable argument list
  */
-void sim_log( const char *format, ... );
-
+void sim_log(const char *format, ...);
 
 /******************* GUI Interface Functions **********************/
 #ifdef HAS_GUI
@@ -105,4 +105,3 @@ void show_cc(cc_t cc);
 void create_memory_display();
 void set_memory(word_t addr, word_t val);
 #endif
-								       

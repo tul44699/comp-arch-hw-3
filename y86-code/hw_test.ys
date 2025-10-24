@@ -1,4 +1,5 @@
 # address 0
+#
     .pos 0
     irmovq stack, %rsp
     call main
@@ -28,11 +29,17 @@ main:
     # amt to increment array by 
     irmovq $8, %r14
 loop:
+    # check if i < 0
+    rrmovq %rcx, %r11
+    tjlt %r11, done
+
     # load A[i] into %rbx
     mrmovq (%rdi), %rbx
 
     # i--
     subq %r14, %rdi
+    irmovq $1, %rax
+    subq %rax, %rcx
 
     # if (A[i] < 0)
     rrmovq %rbx, %r11
@@ -71,44 +78,16 @@ neg_case:
     shaq %r11, %r9
 
 compute_mod:
-
-    # move y into  %r10
-    rrmovq %r9, %r10
-
-    # move limit into r11 
-    rrmovq %rdx, %r11
-
-    # quotient = Y / Limit
-    divq %r11, %r10
-
-    irmovq $0, %r12
-    rrmovq %r10, %r13 
-
-mul_loop:
-    tjle %r13, mul_done
-
-    # product += Limit
-    addq %rdx, %r12
-    irmovq $1, %rax
-
-    # counter--
-    subq %rax, %r13
-    jmp mul_loop
-
-mul_done:
-
-    # remainder = Y - product
+    rrmovq %r9, %r12
+    divq %rdx, %r12
+    mulq %rdx, %r12
     subq %r12, %r9
-
-    # S += remainder
-    addq %r9, %r8
-
-    # i--
-    irmovq $1, %rax
-    subq %rax, %rcx
-
-    # loop until i < 0
-    tjlt %rcx, done
+    
+    tjge %r9, no_adjust
+    addq %rdx, %r9
+no_adjust:
+    
+    addq %r9, %r8          # S += remainder
 
     jmp loop
 
@@ -128,7 +107,7 @@ array: .quad -4
     .quad -1
     .quad 0
     .quad -7
-    .quad 1 
+    .quad 3 
 
 	.pos 0x300
 stack:

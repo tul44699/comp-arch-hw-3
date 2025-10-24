@@ -77,14 +77,14 @@ instr_t instruction_set[] = {
     /* this is just a hack to make the I_POP2 code have an associated name */
     {"pop2", HPACK(I_POP2, F_NONE), 0, NO_ARG, 0, 0, NO_ARG, 0, 0},
 
-    {"tjle", HPACK(I_TJXX, C_LE), 10, R_ARG, 1, 1, M_ARG, 2, 0},
-    {"tjlt", HPACK(I_TJXX, C_L), 10, R_ARG, 1, 1, M_ARG, 2, 0},
-    {"tje", HPACK(I_TJXX, C_E), 10, R_ARG, 1, 1, M_ARG, 2, 0},
-    {"tjne", HPACK(I_TJXX, C_NE), 10, R_ARG, 1, 1, M_ARG, 2, 0},
-    {"tjge", HPACK(I_TJXX, C_GE), 10, R_ARG, 1, 1, M_ARG, 2, 0},
-    {"tjg", HPACK(I_TJXX, C_G), 10, R_ARG, 1, 1, M_ARG, 2, 0},
-    {"shaq", HPACK(I_SHAQ, F_NONE), 2, R_ARG, 1, 1, R_ARG, 1, 0},
-    {"divq", HPACK(I_DIVQ, F_NONE), 2, R_ARG, 1, 1, R_ARG, 1, 0},
+    {"tjle", HPACK(I_TJXX, C_LE), 10, R_ARG, 1, 1, I_ARG, 2, 8},
+    {"tjlt", HPACK(I_TJXX, C_L), 10, R_ARG, 1, 1, I_ARG, 2, 8},
+    {"tje", HPACK(I_TJXX, C_E), 10, R_ARG, 1, 1, I_ARG, 2, 8},
+    {"tjne", HPACK(I_TJXX, C_NE), 10, R_ARG, 1, 1, I_ARG, 2, 8},
+    {"tjge", HPACK(I_TJXX, C_GE), 10, R_ARG, 1, 1, I_ARG, 2, 8},
+    {"tjg", HPACK(I_TJXX, C_G), 10, R_ARG, 1, 1, I_ARG, 2, 8},
+    {"shaq", HPACK(I_ALU, A_SHFT), 2, R_ARG, 1, 1, R_ARG, 1, 0},
+    {"divq", HPACK(I_ALU, A_DIV), 2, R_ARG, 1, 1, R_ARG, 1, 0},
 
     /* For allocation instructions, arg1hi indicates number of bytes */
     {".byte", 0x00, 1, I_ARG, 0, 1, NO_ARG, 0, 0},
@@ -968,72 +968,13 @@ stat_t step_state(state_ptr s, FILE *error_file, bool_t *mult_cycle) {
     long long base = reg_valid(rB) ? (long long)get_reg_val(s->r, rB) : 0;
     long long target = (long long)cval + base;
 
-    const unsigned long long MAXADDR = 0xFFFFULL; // max 16bit
+    const unsigned long long MAXADDR = 0xFFFFULL; /* max 16bit */
 
     if (cond && target >= 0 && (unsigned long long)target <= MAXADDR) {
       s->pc = (word_t)target;
     } else {
       s->pc = ftpc;
     }
-    break;
-  }
-
-  case I_SHAQ: {
-    long long amt = (long long)get_reg_val(s->r, rA);
-    unsigned long long val = (unsigned long long)get_reg_val(s->r, rB);
-    long long s_val = (long long)val;
-    bool_t overflow = FALSE;
-
-    if (amt > 0) {
-      int shift_amt = (amt > 63) ? 63 : amt;
-      s_val = s_val >> shift_amt;
-      val = (unsigned long long)s_val;
-    } else if (amt < 0) {
-      int shift_amt = (-amt > 63) ? 63 : -amt;
-
-      if (shift_amt < 64) {
-        unsigned long long shifted_out_bits = val >> (64 - shift_amt);
-        int sign_bit = (s_val < 0) ? 1 : 0;
-
-        if (sign_bit) {
-          unsigned long long expected_mask = (1ULL << shift_amt) - 1;
-          if (shifted_out_bits != expected_mask)
-            overflow = TRUE;
-        } else {
-          if (shifted_out_bits != 0)
-            overflow = TRUE;
-        }
-      } else {
-        if (s_val != 0)
-          overflow = TRUE;
-      }
-
-      val <<= shift_amt;
-      s_val = (long long)val;
-    }
-
-    set_reg_val(s->r, rB, (word_t)val);
-
-    s->cc = PACK_CC(val == 0 ? 1 : 0, s_val < 0 ? 1 : 0, overflow ? 1 : 0);
-    s->pc = ftpc;
-    break;
-  }
-
-  case I_DIVQ: {
-    long long divisor = (long long)get_reg_val(s->r, rA);
-    long long dividend = (long long)get_reg_val(s->r, rB);
-
-    if (divisor == 0) {
-      s->cc = PACK_CC((dividend == 0) ? 1 : 0, (dividend < 0) ? 1 : 0, 1);
-      s->pc = ftpc;
-      return STAT_HLT;
-    }
-
-    long long q = dividend / divisor;
-    set_reg_val(s->r, rB, (word_t)q);
-
-    s->cc = PACK_CC((q == 0) ? 1 : 0, (q < 0) ? 1 : 0, 0);
-    s->pc = ftpc;
     break;
   }
   default:
