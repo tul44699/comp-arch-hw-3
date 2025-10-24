@@ -452,7 +452,7 @@ word_t compute_alu(alu_t op, word_t argA, word_t argB, bool_t *mult_cycle) {
       val = (word_t)quotient;
     }
     break;
-  } break;
+  }
   default:
     val = 0;
   }
@@ -480,6 +480,7 @@ cc_t compute_cc(alu_t op, word_t argA, word_t argB, bool_t *mult_cycle) {
   case A_MUL:
     ovf = (((word_t)argA < 0) == ((word_t)argB < 0)) &&
           (((word_t)val >= (1 << 15)) != ((word_t)argA < 0));
+    break;
   case A_SHFT: {
     long long amt = (long long)argA;
     ovf = FALSE;
@@ -497,7 +498,6 @@ cc_t compute_cc(alu_t op, word_t argA, word_t argB, bool_t *mult_cycle) {
     }
     break;
   }
-
   case A_DIV: {
     long long divisor = (long long)argA;
     long long dividend = (long long)argB;
@@ -510,7 +510,7 @@ cc_t compute_cc(alu_t op, word_t argA, word_t argB, bool_t *mult_cycle) {
       ovf = FALSE;
     }
     break;
-  } break;
+  }
   default:
     ovf = FALSE;
   }
