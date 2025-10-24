@@ -423,7 +423,36 @@ word_t compute_alu(alu_t op, word_t argA, word_t argB, bool_t *mult_cycle) {
     break;
   case A_MUL:
     val = argA * argB; // *mult_cycle = TRUE;
+  case A_SHFT: {
+    long long amt = (long long)argA;
+    unsigned long long value = (unsigned long long)argB;
+    long long s_value = (long long)argB;
+
+    if (amt > 0) {
+      int shift_amt = (amt > 63) ? 63 : amt;
+      s_value = s_value >> shift_amt;
+      val = (word_t)s_value;
+    } else if (amt < 0) {
+      int shift_amt = (-amt > 63) ? 63 : -amt;
+      value <<= shift_amt;
+      val = (word_t)value;
+    } else {
+      val = argB;
+    }
     break;
+  }
+  case A_DIV: {
+    long long divisor = (long long)argA;
+    long long dividend = (long long)argB;
+
+    if (divisor == 0) {
+      val = 0;
+    } else {
+      long long quotient = dividend / divisor;
+      val = (word_t)quotient;
+    }
+    break;
+  } break;
   default:
     val = 0;
   }
@@ -451,7 +480,37 @@ cc_t compute_cc(alu_t op, word_t argA, word_t argB, bool_t *mult_cycle) {
   case A_MUL:
     ovf = (((word_t)argA < 0) == ((word_t)argB < 0)) &&
           (((word_t)val >= (1 << 15)) != ((word_t)argA < 0));
+  case A_SHFT: {
+    long long amt = (long long)argA;
+    ovf = FALSE;
+
+    if (amt < 0) {
+      int shift_amt = (-amt > 63) ? 63 : -amt;
+      long long s_value = (long long)argB;
+      if (shift_amt > 0 && shift_amt < 16) {
+        int orig_sign = (s_value >> 15) & 1;
+        int new_sign = (val >> 15) & 1;
+        ovf = (orig_sign != new_sign);
+      } else if (shift_amt >= 16) {
+        ovf = ((s_value & 0xFFFF) != 0);
+      }
+    }
     break;
+  }
+
+  case A_DIV: {
+    long long divisor = (long long)argA;
+    long long dividend = (long long)argB;
+
+    if (divisor == 0) {
+      ovf = TRUE;
+      zero = (dividend == 0);
+      sign = (dividend < 0);
+    } else {
+      ovf = FALSE;
+    }
+    break;
+  } break;
   default:
     ovf = FALSE;
   }

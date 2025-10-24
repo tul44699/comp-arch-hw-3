@@ -70,7 +70,7 @@ typedef enum {
 } itype_t;
 
 /* Different ALU operations */
-typedef enum { A_ADD, A_SUB, A_AND, A_XOR, A_MUL, A_NONE } alu_t;
+typedef enum { A_ADD, A_SUB, A_AND, A_XOR, A_MUL, A_NONE, A_SHFT, A_DIV } alu_t;
 
 /* Default function code */
 typedef enum { F_NONE } fun_t;

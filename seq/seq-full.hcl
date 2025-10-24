@@ -42,6 +42,9 @@ wordsig IPOPQ	'I_POPQ'
 # Instruction code for iaddq instruction
 wordsig IIADDQ	'I_IADDQ'
 wordsig IISUBQ	'I_ISUBQ'
+wordsig ITJXX   'I_TJXX'
+wordsig ISHAQ   'I_SHAQ'
+wordsig IDIVQ   'I_DIVQ'
 
 ##### Symbolic represenations of Y86-64 function codes                  #####
 wordsig FNONE    'F_NONE'        # Default function code
@@ -53,6 +56,8 @@ wordsig RNONE    'REG_NONE'   	# Special value indicating "no register"
 ##### ALU Functions referenced explicitly                            #####
 wordsig ALUADD	'A_ADD'		# ALU should add its arguments
 wordsig ALUSUB	'A_SUB'		# ALU should subtract its arguments
+wordsig ALUSHFT	'A_SHFT'	# ALU should shift its arguments
+wordsig ALUDIV	'A_DIV'		# ALU should divide its arguments
 
 ##### Possible instruction status values                             #####
 wordsig SAOK	'STAT_AOK'	# Normal execution
@@ -110,16 +115,16 @@ word ifun = [
 
 bool instr_valid = icode in 
 	{ INOP, IHALT, IRRMOVQ, IIRMOVQ, IRMMOVQ, IMRMOVQ,
-	       IOPQ, IJXX, ICALL, IRET, IPUSHQ, IPOPQ, IIADDQ, IISUBQ };
+	       IOPQ, IJXX, ICALL, IRET, IPUSHQ, IPOPQ, IIADDQ, IISUBQ, ITJXX, ISHAQ, IDIVQ };
 
 # Does fetched instruction require a regid byte?
 bool need_regids =
 	icode in { IRRMOVQ, IOPQ, IPUSHQ, IPOPQ, 
-		     IIRMOVQ, IRMMOVQ, IMRMOVQ, IIADDQ, IISUBQ };
+		     IIRMOVQ, IRMMOVQ, IMRMOVQ, IIADDQ, IISUBQ, ITJXX, ISHAQ, IDIVQ };
 
 # Does fetched instruction require a constant word?
 bool need_valC =
-	icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ, IJXX, ICALL, IIADDQ, IISUBQ };
+	icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ, IJXX, ICALL, IIADDQ, IISUBQ, ITJXX };
 
 ################ Decode Stage    ###################################
 
@@ -127,6 +132,7 @@ bool need_valC =
 word srcA = [
 	icode in { IRRMOVQ, IRMMOVQ, IOPQ, IPUSHQ  } : rA;
 	icode in { IPOPQ, IRET } : RRSP;
+  icode in { ITJXX, ISHAQ, IDIVQ } : rA;
 	1 : RNONE; # Don't need register
 ];
 
@@ -134,6 +140,7 @@ word srcA = [
 word srcB = [
 	icode in { IOPQ, IRMMOVQ, IMRMOVQ, IIADDQ, IISUBQ  } : rB;
 	icode in { IPUSHQ, IPOPQ, ICALL, IRET } : RRSP;
+  icode in { ITJXX, ISHAQ, IDIVQ } : rB;
 	1 : RNONE;  # Don't need register
 ];
 
@@ -142,6 +149,7 @@ word dstE = [
 	icode in { IRRMOVQ } && Cnd : rB;
 	icode in { IIRMOVQ, IOPQ, IIADDQ, IISUBQ} : rB;
 	icode in { IPUSHQ, IPOPQ, ICALL, IRET } : RRSP;
+  icode in { ISHAQ, IDIVQ } : rB;
 	1 : RNONE;  # Don't write any register
 ];
 
@@ -159,6 +167,8 @@ word aluA = [
 	icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ, IIADDQ, IISUBQ } : valC;
 	icode in { ICALL, IPUSHQ } : -8;
 	icode in { IRET, IPOPQ } : 8;
+  icode in { ITJXX } : valC;
+  icode in { ISHAQ, IDIVQ } : valA;
 	# Other instructions don't need ALU
 ];
 
@@ -167,6 +177,7 @@ word aluB = [
 	icode in { IRMMOVQ, IMRMOVQ, IOPQ, ICALL, 
 		      IPUSHQ, IRET, IPOPQ, IIADDQ, IISUBQ } : valB;
 	icode in { IRRMOVQ, IIRMOVQ } : 0;
+  icode in { ITJXX, ISHAQ, IDIVQ } : valB;
 	# Other instructions don't need ALU
 ];
 
@@ -174,6 +185,9 @@ word aluB = [
 word alufun = [
 	icode == IOPQ : ifun;
 	icode == IISUBQ : ALUSUB;
+  icode in { ITJXX } : ALUADD;
+  icode in { ISHAQ } : ALUSHFT;
+  icode in { IDIVQ } : ALUDIV;
 	1 : ALUADD;
 ];
 
@@ -185,7 +199,23 @@ word rem_cycles = [
 ];
 
 ## Should the condition codes be updated?
-bool set_cc = icode in { IOPQ, IIADDQ, IISUBQ };
+bool set_cc = icode in { IOPQ, IIADDQ, IISUBQ, ISHAQ, IDIVQ };
+
+bool tjxx_cond = [
+	icode == ITJXX && ifun == 0 : 1;
+	icode == ITJXX && ifun == 1 : (valA == 0);
+	icode == ITJXX && ifun == 2 : (valA != 0);
+	icode == ITJXX && ifun == 3 : (valA < 0);
+	icode == ITJXX && ifun == 4 : (valA <= 0);
+	icode == ITJXX && ifun == 5 : (valA > 0);
+	icode == ITJXX && ifun == 6 : (valA >= 0);
+	1 : 0;
+];
+
+bool tjxx_addr_valid = [
+	icode == ITJXX : (valE >= 0 && valE <= 0xFFFF);
+	1 : 1;
+];
 
 ################ Memory Stage    ###################################
 
@@ -216,6 +246,7 @@ word Stat = [
 	imem_error || dmem_error : SADR;
 	!instr_valid: SINS;
 	icode == IHALT : SHLT;
+	icode == IDIVQ && valA == 0 : SHLT;
 	1 : SAOK;
 ];
 
@@ -224,6 +255,8 @@ word Stat = [
 ## What address should instruction be fetched at
 
 word new_pc = [
+	icode == ITJXX && tjxx_cond && tjxx_addr_valid : valE;
+	icode == ITJXX : valP;
 	# Call.  Use instruction constant
 	icode == ICALL : valC;
 	# Taken branch.  Use instruction constant
